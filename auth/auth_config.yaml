@@ -1,0 +1,10 @@
+credentials:
+  users:
+    user1:
+      email: "user@test.com"
+      name: "User One"
+      password: "hashed"   # We will generate
+cookie:
+  expiry_days: 1
+  key: "some_key"
+  name: "auth_cookie"
