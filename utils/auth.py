@@ -1,4 +1,6 @@
 import hashlib
+from pymysql.err import IntegrityError
+
 from utils.db import run_query, get_user_profile
 
 
@@ -15,7 +17,12 @@ def signup_user(email, password, role="User", name=None):
         INSERT INTO users (email, name, role, password_hash)
         VALUES (%s, %s, %s, %s)
     """
-    run_query(query, (email, name, role, hashed))
+
+    try:
+        run_query(query, (email, name, role, hashed))
+    except IntegrityError:
+        # Friendly message instead of DB error
+        raise ValueError("Email already registered. Please login.")
 
 
 # ✅ Validate credentials

@@ -1,8 +1,14 @@
 import streamlit as st
 import json  # If you need JSON handling later
+
+from pydantic import ValidationError
+
 from utils.db import run_query, get_user_profile, save_preferences
 from utils.helper import section_header
 from utils.load_data import list_unique_values
+
+from utils.schemas import PreferencesSchema
+
 
 st.set_page_config(layout="wide")
 
@@ -101,7 +107,7 @@ insights_pref = st.multiselect(
 st.markdown("---")
 
 # -------------------------------------------------
-# VALIDATION
+# BASIC UI VALIDATION (UNCHANGED)
 # -------------------------------------------------
 required_ok = all(
     [
@@ -122,32 +128,51 @@ c1, c2 = st.columns([1, 1])
 
 with c1:
     if st.button("✅ Complete", disabled=not required_ok):
-        # Save name/role in users table
-        run_query(
-            "UPDATE users SET name=%s, role=%s WHERE email=%s",
-            (name, role, user_email),
-        )
+        try:
+            # ✅ Pydantic validation (NEW – does NOT change flow)
+            prefs = PreferencesSchema(
+                sectors=pref_sectors,
+                stages=pref_stages,
+                geography=pref_geo,
+                risk_level=risk,
+                investment_size=invest_size,
+            )
 
-        # Upsert preferences – save_preferences handles INSERT + UPDATE
-        save_preferences(
-            profile["id"],
-            pref_sectors,
-            pref_stages,
-            pref_geo,
-            risk,
-            invest_size,
-            goals=goals,
-            budget=budget,
-            experience=experience,
-            insights_pref=insights_pref,
-        )
+            # Save name/role in users table (UNCHANGED)
+            run_query(
+                "UPDATE users SET name=%s, role=%s WHERE email=%s",
+                (name, role, user_email),
+            )
 
-        # Your flow: send back to login
-        st.success("✅ Onboarding completed. Please login now.")
-        st.session_state.logged_in = False
-        st.session_state.auth_step = "login"
-        st.session_state.user_email = None
-        st.switch_page("app.py")
+            # Upsert preferences (UNCHANGED)
+            save_preferences(
+                profile["id"],
+                prefs.sectors,
+                prefs.stages,
+                prefs.geography,
+                prefs.risk_level,
+                prefs.investment_size,
+                goals=goals,
+                budget=budget,
+                experience=experience,
+                insights_pref=insights_pref,
+            )
+
+            # Flow unchanged
+            st.success("✅ Onboarding completed. Please login now.")
+            st.session_state.logged_in = False
+            st.session_state.auth_step = "login"
+            st.session_state.user_email = None
+            st.switch_page("app.py")
+
+        except ValidationError as e:
+            # Clean error from schema
+            st.error(e.errors()[0]["msg"])
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            st.error(f"Error saving preferences: {e}")
 
 with c2:
     if st.button("Why can't I complete?"):
